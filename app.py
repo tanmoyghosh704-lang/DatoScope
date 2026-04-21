@@ -245,8 +245,8 @@ def clean_dataframe(
     outlier_method: str,
     scale_method: str,
     remove_dupes: bool,
-    label_col: str | None = None,
-) -> tuple[pd.DataFrame, dict]:
+    label_col=None,
+) -> tuple:
     report = {"rows_in": len(df), "cols_in": len(df.columns), "actions": []}
     df = df.copy()
 
@@ -456,9 +456,8 @@ with tab_data:
             x=miss.index, y=miss.values,
             labels={"x": "Column", "y": "Missing %"},
             color=miss.values, color_continuous_scale="plasma",
-            **PLOTLY_THEME,
         )
-        fig.update_layout(coloraxis_showscale=False, height=320)
+        fig.update_layout(coloraxis_showscale=False, height=320, **PLOTLY_THEME)
         st.plotly_chart(fig, use_container_width=True)
 
 
@@ -511,15 +510,16 @@ with tab_eda:
     st.markdown("---")
 
     # ── Correlation heatmap
+    # FIX: px.imshow does not accept paper_bgcolor/plot_bgcolor/etc directly.
+    # Apply PLOTLY_THEME via update_layout() instead of **PLOTLY_THEME in px.imshow().
     st.markdown("#### Correlation Matrix")
     if len(num_cols) >= 2:
         corr  = df_eda[num_cols].corr()
         fig_c = px.imshow(
             corr, text_auto=".2f", aspect="auto",
             color_continuous_scale="RdBu_r", zmin=-1, zmax=1,
-            **PLOTLY_THEME,
         )
-        fig_c.update_layout(height=500)
+        fig_c.update_layout(height=500, **PLOTLY_THEME)
         st.plotly_chart(fig_c, use_container_width=True)
 
         # Top correlations
@@ -546,9 +546,8 @@ with tab_eda:
             color=None if color_col == "— none —" else color_col,
             opacity=0.65, trendline="ols",
             color_discrete_sequence=PALETTE,
-            **PLOTLY_THEME,
         )
-        fig_s.update_layout(height=420)
+        fig_s.update_layout(height=420, **PLOTLY_THEME)
         st.plotly_chart(fig_s, use_container_width=True)
 
     # ── Variance ranking
@@ -559,9 +558,8 @@ with tab_eda:
         x=var.index, y=var.values,
         labels={"x": "Feature", "y": "Variance"},
         color=var.values, color_continuous_scale="viridis",
-        **PLOTLY_THEME,
     )
-    fig_v.update_layout(coloraxis_showscale=False, height=320)
+    fig_v.update_layout(coloraxis_showscale=False, height=320, **PLOTLY_THEME)
     st.plotly_chart(fig_v, use_container_width=True)
 
 
@@ -707,11 +705,12 @@ with tab_reg:
                         coef_df = pd.DataFrame({"Feature": list(coef_d.keys()),
                                                 "Coefficient": list(coef_d.values())})
                         coef_df = coef_df.reindex(coef_df["Coefficient"].abs().sort_values(ascending=True).index)
-                        fig_c = px.bar(coef_df, x="Coefficient", y="Feature", orientation="h",
+                        fig_c2 = px.bar(coef_df, x="Coefficient", y="Feature", orientation="h",
                                        color="Coefficient", color_continuous_scale="RdBu",
-                                       color_continuous_midpoint=0, **PLOTLY_THEME)
-                        fig_c.update_layout(title="Coefficients", height=300, coloraxis_showscale=False)
-                        st.plotly_chart(fig_c, use_container_width=True)
+                                       color_continuous_midpoint=0)
+                        fig_c2.update_layout(title="Coefficients", height=300,
+                                             coloraxis_showscale=False, **PLOTLY_THEME)
+                        st.plotly_chart(fig_c2, use_container_width=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -846,12 +845,12 @@ with tab_clust:
                     color_discrete_sequence=PALETTE,
                     labels={"x": xlab, "y": ylab},
                     opacity=0.75,
-                    **PLOTLY_THEME,
                 )
-                fig_cl.update_traces(marker_size=6)
                 fig_cl.update_layout(height=380,
                                      legend_title_text="Cluster",
-                                     title=f"{name} — Cluster Assignments")
+                                     title=f"{name} — Cluster Assignments",
+                                     **PLOTLY_THEME)
+                fig_cl.update_traces(marker_size=6)
                 st.plotly_chart(fig_cl, use_container_width=True)
 
                 # Cluster sizes
@@ -860,9 +859,9 @@ with tab_clust:
                     x=sizes.index.astype(str), y=sizes.values,
                     labels={"x": "Cluster", "y": "Count"},
                     color=sizes.values, color_continuous_scale="plasma",
-                    **PLOTLY_THEME,
                 )
-                fig_sz.update_layout(title="Cluster sizes", coloraxis_showscale=False, height=260)
+                fig_sz.update_layout(title="Cluster sizes", coloraxis_showscale=False,
+                                     height=260, **PLOTLY_THEME)
                 st.plotly_chart(fig_sz, use_container_width=True)
 
                 # Dendrogram for hierarchical
@@ -893,10 +892,10 @@ with tab_clust:
                     fig_elbow = px.line(
                         x=list(k_range), y=inertias,
                         labels={"x": "k", "y": "Inertia"},
-                        markers=True, **PLOTLY_THEME,
+                        markers=True,
                     )
                     fig_elbow.update_traces(line_color="#00d4ff", marker_color="#7c3aed", marker_size=8)
-                    fig_elbow.update_layout(title="Elbow Method", height=280)
+                    fig_elbow.update_layout(title="Elbow Method", height=280, **PLOTLY_THEME)
                     st.plotly_chart(fig_elbow, use_container_width=True)
 
 
@@ -941,18 +940,18 @@ with tab_compare:
             rdf, x="Model", y=["R²", "CV R²"],
             barmode="group",
             color_discrete_sequence=["#00d4ff", "#7c3aed"],
-            **PLOTLY_THEME,
         )
-        fig_r.update_layout(title="R² Comparison", height=340, legend_title_text="Metric")
+        fig_r.update_layout(title="R² Comparison", height=340,
+                             legend_title_text="Metric", **PLOTLY_THEME)
         st.plotly_chart(fig_r, use_container_width=True)
 
         fig_err = px.bar(
             rdf, x="Model", y=["RMSE", "MAE"],
             barmode="group",
             color_discrete_sequence=["#f59e0b", "#ef4444"],
-            **PLOTLY_THEME,
         )
-        fig_err.update_layout(title="Error Metrics (lower is better)", height=320, legend_title_text="Metric")
+        fig_err.update_layout(title="Error Metrics (lower is better)", height=320,
+                               legend_title_text="Metric", **PLOTLY_THEME)
         st.plotly_chart(fig_err, use_container_width=True)
 
         # Radar chart
@@ -1052,10 +1051,9 @@ with tab_compare:
                 x="Algorithm", y="Silhouette",
                 color="Algorithm",
                 color_discrete_sequence=PALETTE,
-                **PLOTLY_THEME,
             )
             fig_sil.update_layout(title="Silhouette Score (higher = better)", height=300,
-                                   showlegend=False)
+                                   showlegend=False, **PLOTLY_THEME)
             st.plotly_chart(fig_sil, use_container_width=True)
 
             fig_db = px.bar(
@@ -1063,10 +1061,9 @@ with tab_compare:
                 x="Algorithm", y="Davies-Bouldin",
                 color="Algorithm",
                 color_discrete_sequence=PALETTE,
-                **PLOTLY_THEME,
             )
             fig_db.update_layout(title="Davies-Bouldin Score (lower = better)", height=300,
-                                  showlegend=False)
+                                  showlegend=False, **PLOTLY_THEME)
             st.plotly_chart(fig_db, use_container_width=True)
 
         # Recommendations
