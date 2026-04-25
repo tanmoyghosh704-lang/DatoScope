@@ -1,81 +1,122 @@
-# 🔬 DatoScope — Interactive ML Platform
+# DatoScope
 
-A full Streamlit application for data cleaning, EDA, regression with regularization, and clustering.
+DatoScope is a multipage Streamlit application for synthetic data generation, dataset upload, preprocessing, exploratory data analysis, supervised learning, clustering, and model comparison.
 
-## Quick Start
+## Highlights
 
-```bash
-pip install -r requirements.txt
-streamlit run app.py
-```
+- Generate datasets inside the app for regression or clustering
+- Upload a single dataset or separate train/test files
+- Clean train and test data with missing-value handling, outlier removal, duplicate removal, and scaling
+- Run EDA with summary statistics, distributions, correlations, scatter plots, and variance ranking
+- Train regression models: Linear Regression, Ridge, Lasso
+- Train classification models: Logistic Regression, Random Forest, KNN
+- Run clustering models: K-Means, DBSCAN, Hierarchical Clustering
+- Compare regression, classification, and clustering results in dedicated pages
+- Download trained supervised models as `.pkl`
 
----
+## Data Input Modes
 
-## Features
+The sidebar supports three workflows:
 
-### 📁 Data Overview
-- Upload CSV, Excel (.xls/.xlsx), ZIP-compressed CSV, or headerless .data files
-- Instant shape, missing-value, and duplicate summary
-- Downloadable cleaned dataset
+1. `Generate Dataset`
+   Create synthetic regression or clustering datasets with controls for:
+   - dataset type
+   - sample count
+   - noise
+   - number of clusters / arms
+   - number of features
+   - random seed
 
-### 🔧 Preprocessing (sidebar)
-- Missing value strategies: mean / median / mode / drop
-- Outlier removal: IQR or Z-Score
-- Scalers: Standard / MinMax / Robust
-- Duplicate removal toggle
-- Optional label/target column (kept unscaled)
+2. `Upload Single File`
+   Upload one file and let the app create an internal train/test split during supervised modeling.
 
-### 🔍 EDA
-- Descriptive statistics + skewness + kurtosis
-- Interactive feature distributions (histograms)
-- Correlation heatmap (Pearson)
-- Configurable scatter plot with trendline
-- Feature variance ranking
+3. `Upload Train/Test`
+   Upload a train file and an optional test file.
+   If the test file is present, the app uses it directly instead of creating a split.
 
-### 📈 Regression
-| Model | Regularization |
-|---|---|
-| Linear Regression | — |
-| Ridge Regression | α ∈ {0.001 … 100} |
-| Lasso Regression | α ∈ {0.001 … 100} |
+## Pages
 
-**Metrics:** R², CV R², RMSE, MAE, MSE  
-**Plots:** Actual vs Predicted · Residual distribution · Coefficient bar chart
-
-### 🔵 Clustering
-| Algorithm | Key Parameters |
-|---|---|
-| K-Means | k (2–10), elbow curve |
-| DBSCAN | ε, min_samples |
-| Hierarchical (Agglomerative) | n_clusters, linkage, dendrogram |
-
-**Metrics:** Silhouette Score ↑ · Davies-Bouldin Index ↓ · Calinski-Harabasz ↑  
-**Visuals:** PCA-reduced 2-D scatter · Cluster size bar · Dendrogram (Hierarchical) · Elbow curve (K-Means)
-
-### 🏆 Model Comparison
-- Side-by-side metric tables (auto-highlighted winners)
-- Grouped bar charts for R² / error / silhouette
-- Radar chart (normalized across all metrics)
-- Automated text recommendation + overfitting detection
-- One-click download of the full comparison report (.txt)
-
----
-
-## Supported File Types
-| Extension | Notes |
-|---|---|
-| `.csv` | Any delimiter; large files handled automatically |
-| `.xlsx` / `.xls` | Multi-row header auto-detection |
-| `.zip` | Must contain exactly one `.csv` inside |
-| `.data` | Headerless; comma or whitespace delimited |
-
----
+- `app.py`
+  Data input, preprocessing, dataset metadata, raw/clean previews
+- `pages/1_EDA.py`
+  Exploratory data analysis
+- `pages/2_Supervised_Modeling.py`
+  Regression and classification workflows
+- `pages/3_Clustering.py`
+  Clustering workflows and visualizations
+- `pages/4_Comparison.py`
+  Model comparison dashboard
 
 ## Project Structure
-```
-datascope_app/
-├── app.py              ← Main Streamlit application
-└── requirements.txt    ← Python dependencies
+
+```text
+DatoScope/
+├── app.py
+├── pages/
+│   ├── 1_EDA.py
+│   ├── 2_Supervised_Modeling.py
+│   ├── 3_Clustering.py
+│   └── 4_Comparison.py
+├── utils/
+│   ├── app_state.py
+│   ├── data_input.py
+│   ├── generators.py
+│   ├── modeling.py
+│   ├── preprocessing.py
+│   └── ui.py
+├── scripts/
+│   ├── 01_generate_data.py
+│   ├── 02_clean_data.py
+│   ├── 03_eda.py
+│   └── 04_visualization.py
+├── train.py
+└── requirements.txt
 ```
 
-> For the synthetic dataset scripts, see the `Project/` directory (train.py + scripts/).
+## Setup
+
+Use Python 3.11 for the most reliable dependency compatibility.
+
+```bash
+cd /Users/mehakgupta/Desktop/sem2/Data_Visual/project/DatoScope
+/opt/homebrew/bin/python3.11 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+## Run The App
+
+```bash
+cd /Users/mehakgupta/Desktop/sem2/Data_Visual/project/DatoScope
+/Users/mehakgupta/Desktop/sem2/Data_Visual/project/DatoScope/.venv/bin/python -m streamlit run app.py
+```
+
+## Run The Offline Pipeline
+
+```bash
+cd /Users/mehakgupta/Desktop/sem2/Data_Visual/project/DatoScope
+/Users/mehakgupta/Desktop/sem2/Data_Visual/project/DatoScope/.venv/bin/python train.py
+```
+
+This pipeline runs:
+
+1. synthetic dataset generation
+2. cleaning and preprocessing
+3. EDA reporting
+4. static plot generation
+
+## Supported File Types
+
+| Extension | Notes |
+|---|---|
+| `.csv` | Standard CSV upload |
+| `.xlsx` / `.xls` | Excel upload with simple header detection |
+| `.zip` | Must contain one CSV |
+| `.data` | Headerless comma- or whitespace-delimited files |
+
+## Notes
+
+- Classification is inferred from the selected target column but can also be chosen manually in the supervised modeling page.
+- Model export currently supports supervised models.
+- Clustering runs on the train dataset only when a separate test file is present.
