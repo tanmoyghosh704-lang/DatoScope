@@ -5,6 +5,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
+from scipy import stats
 
 from utils.app_state import active_test_df, active_train_df, init_state
 from utils.data_input import render_data_sidebar
@@ -57,6 +58,27 @@ if sel_cols:
     st.plotly_chart(fig, use_container_width=True)
 
 st.markdown("---")
+st.markdown("#### Q-Q Plots")
+st.caption("Q-Q plots compare each feature against a normal distribution. Strong bends away from the diagonal suggest skew, heavy tails, or non-normal behavior.")
+qq_cols = st.multiselect("Choose features for Q-Q plots", num_cols, default=num_cols[: min(2, len(num_cols))], key="qq_cols")
+if qq_cols:
+    qn = len(qq_cols)
+    qcols = min(2, qn)
+    qrows = (qn + qcols - 1) // qcols
+    qq_fig = make_subplots(rows=qrows, cols=qcols, subplot_titles=qq_cols)
+    for idx, col in enumerate(qq_cols):
+        row, col_idx = divmod(idx, qcols)
+        series = df_eda[col].dropna()
+        osm, osr = stats.probplot(series, dist="norm", fit=False)
+        slope, intercept, _ = stats.probplot(series, dist="norm", fit=True)[1]
+        qq_fig.add_trace(go.Scatter(x=osm, y=osr, mode="markers", marker=dict(color="#00d4ff", size=5), showlegend=False), row + 1, col_idx + 1)
+        x_line = np.array([min(osm), max(osm)])
+        y_line = slope * x_line + intercept
+        qq_fig.add_trace(go.Scatter(x=x_line, y=y_line, mode="lines", line=dict(color="#f59e0b", dash="dash"), showlegend=False), row + 1, col_idx + 1)
+    qq_fig.update_layout(height=320 * qrows, **PLOTLY_THEME)
+    st.plotly_chart(qq_fig, use_container_width=True)
+
+st.markdown("---")
 st.markdown("#### Correlation Matrix")
 if len(num_cols) >= 2:
     corr = df_eda[num_cols].corr()
@@ -79,26 +101,29 @@ if len(num_cols) >= 2:
     y_col = col2.selectbox("Y axis", num_cols, index=min(1, len(num_cols) - 1), key=f"eda_y_{dataset_choice}")
     color_opts = ["— none —"] + df_eda.columns.tolist()
     color_col = st.selectbox("Color by", color_opts, key=f"eda_color_{dataset_choice}")
-    fig_s = px.scatter(
-        df_eda,
-        x=x_col,
-        y=y_col,
-        color=None if color_col == "— none —" else color_col,
-        opacity=0.65,
-        trendline="ols",
-    )
+    fig_s = px.scatter(df_eda, x=x_col, y=y_col, color=None if color_col == "— none —" else color_col, opacity=0.65, trendline="ols")
     fig_s.update_layout(height=420, **PLOTLY_THEME)
     st.plotly_chart(fig_s, use_container_width=True)
 
 st.markdown("---")
 st.markdown("#### Feature Variance Ranking")
+st.caption("Variance shows how much a feature spreads out. Higher variance means values are more spread and may carry more separating power, while very low variance often means the feature changes very little and may add limited signal.")
 var = df_eda[num_cols].var().sort_values(ascending=False)
-fig_v = px.bar(
-    x=var.index,
-    y=var.values,
-    labels={"x": "Feature", "y": "Variance"},
-    color=var.values,
-    color_continuous_scale="viridis",
+var_df = var.reset_index()
+var_df.columns = ["Feature", "Variance"]
+var_df["Interpretation"] = np.where(
+    var_df["Variance"] < max(var_df["Variance"].max() * 0.05, 0.01),
+    "Low spread",
+    np.where(var_df["Variance"] > var_df["Variance"].median(), "High spread", "Moderate spread"),
 )
-fig_v.update_layout(coloraxis_showscale=False, height=320, **PLOTLY_THEME)
+fig_v = px.bar(
+    var_df,
+    x="Feature",
+    y="Variance",
+    color="Interpretation",
+    text=var_df["Variance"].round(3),
+    color_discrete_map={"High spread": "#00d4ff", "Moderate spread": "#7c3aed", "Low spread": "#f59e0b"},
+)
+fig_v.update_traces(textposition="outside")
+fig_v.update_layout(height=360, yaxis_title="Variance (spread of values)", **PLOTLY_THEME)
 st.plotly_chart(fig_v, use_container_width=True)

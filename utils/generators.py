@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-from sklearn.datasets import make_blobs, make_circles, make_moons, make_regression
+from sklearn.datasets import make_blobs, make_circles, make_classification, make_moons, make_regression
 
 
 CLUSTERING_DATASETS = (
@@ -27,9 +27,15 @@ REGRESSION_DATASETS = (
     "High-Dimensional",
 )
 
+CLASSIFICATION_DATASETS = (
+    "Linearly Separable",
+    "Overlapping Classes",
+    "Imbalanced Classes",
+)
+
 
 def _feature_columns(df: pd.DataFrame) -> list[str]:
-    return [col for col in df.columns if col not in ("label", "target")]
+    return [col for col in df.columns if col not in ("label", "target", "class")]
 
 
 def _expand_features(
@@ -276,6 +282,40 @@ def gen_highdim_regression(
     return df, coef_df
 
 
+def gen_classification(
+    n_samples: int = 500,
+    n_features: int = 6,
+    n_informative: int = 4,
+    *,
+    seed: int = 42,
+    class_sep: float = 1.5,
+    weights: tuple[float, float] | None = None,
+    flip_y: float = 0.02,
+    missing_pct: float = 0.05,
+    outlier_pct: float = 0.03,
+    target_name: str = "target",
+) -> pd.DataFrame:
+    rng = np.random.default_rng(seed)
+    X, y = make_classification(
+        n_samples=n_samples,
+        n_features=n_features,
+        n_informative=min(n_informative, n_features),
+        n_redundant=max(0, min(2, n_features - min(n_informative, n_features))),
+        n_repeated=0,
+        n_classes=2,
+        weights=weights,
+        flip_y=flip_y,
+        class_sep=class_sep,
+        random_state=seed,
+    )
+    cols = [f"x{i+1}" for i in range(n_features)]
+    df = pd.DataFrame(X, columns=cols)
+    df[target_name] = y
+    _inject_missing(df, missing_pct, cols, rng)
+    _inject_outliers(df, outlier_pct, cols, rng)
+    return df
+
+
 def generate_dataset(
     task_type: str,
     dataset_type: str,
@@ -286,6 +326,7 @@ def generate_dataset(
     random_seed: int = 42,
     n_features: int = 20,
     n_informative: int = 5,
+    target_name: str = "target",
 ) -> tuple[pd.DataFrame, dict]:
     task_type = task_type.lower()
     metadata = {
@@ -295,6 +336,7 @@ def generate_dataset(
         "random_seed": random_seed,
         "n_samples": n_samples,
         "n_features": n_features,
+        "target_column": target_name if task_type in {"regression", "classification"} else "label",
     }
 
     if task_type == "clustering":
@@ -316,6 +358,44 @@ def generate_dataset(
         df = _expand_features(df, max(n_features, 2), seed=random_seed)
         return df, metadata
 
+    if task_type == "classification":
+        mapping = {
+            "Linearly Separable": lambda: gen_classification(
+                n_samples=n_samples,
+                n_features=max(n_features, 2),
+                n_informative=min(max(n_informative, 2), max(n_features, 2)),
+                seed=random_seed,
+                class_sep=max(1.2 + noise, 0.5),
+                flip_y=min(noise * 0.05, 0.2),
+                target_name=target_name,
+            ),
+            "Overlapping Classes": lambda: gen_classification(
+                n_samples=n_samples,
+                n_features=max(n_features, 2),
+                n_informative=min(max(n_informative, 2), max(n_features, 2)),
+                seed=random_seed,
+                class_sep=max(0.6, 1.1 - noise * 0.25),
+                flip_y=min(noise * 0.12, 0.35),
+                target_name=target_name,
+            ),
+            "Imbalanced Classes": lambda: gen_classification(
+                n_samples=n_samples,
+                n_features=max(n_features, 2),
+                n_informative=min(max(n_informative, 2), max(n_features, 2)),
+                seed=random_seed,
+                class_sep=max(1.0, 1.3 - noise * 0.1),
+                weights=(0.82, 0.18),
+                flip_y=min(noise * 0.08, 0.25),
+                target_name=target_name,
+            ),
+        }
+        df = mapping[dataset_type]()
+        metadata.update({
+            "noise": noise,
+            "n_informative": min(n_informative, n_features),
+        })
+        return df, metadata
+
     mapping = {
         "Linear": lambda: gen_linear_regression(n_samples=n_samples, noise=noise * 100, seed=random_seed),
         "Nonlinear": lambda: gen_nonlinear_regression(n_samples=n_samples, noise=max(noise * 20, 0.1), seed=random_seed),
@@ -329,6 +409,9 @@ def generate_dataset(
         )[0],
     }
     df = mapping[dataset_type]()
+    if task_type == "regression":
+        if target_name != "target" and "target" in df.columns:
+            df = df.rename(columns={"target": target_name})
     if dataset_type != "High-Dimensional":
         df = _expand_features(df, max(n_features, 1), seed=random_seed)
     metadata.update({

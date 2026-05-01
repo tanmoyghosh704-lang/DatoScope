@@ -1,15 +1,20 @@
 from __future__ import annotations
 
+import matplotlib
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+from sklearn.tree import plot_tree
 
 from utils.app_state import active_test_df, active_train_df, init_state
 from utils.data_input import render_data_sidebar
 from utils.modeling import export_model_bytes, infer_supervised_task, run_classification_models, run_regression_models
 from utils.ui import PLOTLY_THEME, setup_page
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 
 setup_page("DatoScope · Supervised")
@@ -24,27 +29,42 @@ if df_train is None:
     st.info("Load or generate a dataset first.")
     st.stop()
 
-num_cols = df_train.select_dtypes(include="number").columns.tolist()
+active_task = st.session_state.data_meta.get("active_ml_task", "Auto")
+if active_task == "Clustering":
+    st.warning("The current selected ML task is Clustering. Switch the selected ML task in the sidebar to Regression or Classification to use this page.")
+    st.stop()
+
 if len(df_train.columns) < 2:
     st.warning("Need at least two columns for supervised modeling.")
     st.stop()
 
-target_default = st.session_state.data_meta.get("target_column")
-target_options = df_train.columns.tolist()
-default_index = target_options.index(target_default) if target_default in target_options else len(target_options) - 1
-target_col = st.selectbox("🎯 Target column", target_options, index=max(0, default_index))
-st.session_state.data_meta["target_column"] = target_col
+allowed_supervised = ["Regression", "Classification"] if active_task == "Auto" else [active_task]
+task_choice = st.radio("Choose supervised task", allowed_supervised, horizontal=True)
+all_targets = df_train.columns.tolist()
 
-suggested_task = infer_supervised_task(df_train, target_col)
-task_type = st.radio("Task type", ["Regression", "Classification"], index=0 if suggested_task == "Regression" else 1)
-st.caption(f"Suggested task: {suggested_task}")
+if task_choice == "Regression":
+    default_reg = st.session_state.regression_target if st.session_state.regression_target in all_targets else all_targets[-1]
+    target_col = st.selectbox("🎯 Regression target", all_targets, index=all_targets.index(default_reg), key="regression_target_select")
+    st.session_state.regression_target = target_col
+else:
+    default_cls = st.session_state.classification_target if st.session_state.classification_target in all_targets else all_targets[-1]
+    target_col = st.selectbox("🎯 Classification target", all_targets, index=all_targets.index(default_cls), key="classification_target_select")
+    st.session_state.classification_target = target_col
+
+st.session_state.data_meta["target_column"] = target_col
+st.caption(f"Suggested task from target type: {infer_supervised_task(df_train, target_col)}")
 
 feature_candidates = [c for c in df_train.columns if c != target_col]
 default_features = [c for c in feature_candidates if pd.api.types.is_numeric_dtype(df_train[c])]
 features = st.multiselect("Feature columns (X)", feature_candidates, default=default_features[: min(len(default_features), 10)])
-test_size = st.slider("Test split %", 10, 40, 20) / 100
-cv_folds = st.slider("CV folds", 3, 10, 5)
-random_seed = st.number_input("Split seed", min_value=0, value=42, step=1)
+
+settings1, settings2, settings3 = st.columns(3)
+with settings1:
+    test_size = st.slider("Test split %", 10, 40, 20) / 100
+with settings2:
+    cv_folds = st.slider("CV folds", 3, 10, 5)
+with settings3:
+    random_seed = st.number_input("Split seed", min_value=0, value=42, step=1)
 
 if not features:
     st.warning("Select at least one feature column.")
@@ -65,13 +85,14 @@ if len(numeric_features) != len(features):
     if not features:
         st.stop()
 
-if task_type == "Regression":
-    col_a, col_b = st.columns(2)
-    with col_a:
+if task_choice == "Regression":
+    st.markdown("#### Regression Models")
+    conf_a, conf_b = st.columns(2)
+    with conf_a:
         run_lr = st.checkbox("Linear Regression", value=True)
         run_ridge = st.checkbox("Ridge", value=True)
         ridge_alpha = st.select_slider("Ridge α", [0.001, 0.01, 0.1, 1, 10, 100], value=1.0)
-    with col_b:
+    with conf_b:
         run_lasso = st.checkbox("Lasso", value=True)
         lasso_alpha = st.select_slider("Lasso α", [0.001, 0.01, 0.1, 1, 10, 100], value=0.1)
 
@@ -99,21 +120,34 @@ if task_type == "Regression":
         st.stop()
 
     st.caption(f"Evaluation split: {next(iter(res.values()))['split_method']}")
-    metric_rows = [{"Model": name, "R²": r["R²"], "CV R²": r["CV R²"], "RMSE": r["RMSE"], "MAE": r["MAE"], "MSE": r["MSE"]} for name, r in res.items()]
+    metric_rows = [
+        {
+            "Model": name,
+            "R²": r["R²"],
+            "CV R²": r["CV R²"],
+            "Overfit Gap": r["Overfit Gap"],
+            "RMSE": r["RMSE"],
+            "MAE": r["MAE"],
+            "MSE": r["MSE"],
+        }
+        for name, r in res.items()
+    ]
     mdf = pd.DataFrame(metric_rows).set_index("Model")
     st.dataframe(
         mdf.style.highlight_max(subset=["R²", "CV R²"], color="#10b98133")
-        .highlight_min(subset=["RMSE", "MAE", "MSE"], color="#10b98133")
+        .highlight_min(subset=["Overfit Gap", "RMSE", "MAE", "MSE"], color="#10b98133")
         .format(precision=4),
         use_container_width=True,
     )
 
     for name, r in res.items():
         st.markdown(f"---\n#### {name}")
-        m1, m2, m3 = st.columns(3)
+        m1, m2, m3, m4 = st.columns(4)
         m1.metric("R²", r["R²"])
-        m2.metric("RMSE", r["RMSE"])
-        m3.metric("CV R²", r["CV R²"])
+        m2.metric("CV R²", r["CV R²"])
+        m3.metric("RMSE", r["RMSE"])
+        m4.metric("Overfit Gap", r["Overfit Gap"])
+
         ytest_arr = np.array(r["y_test"])
         ypred_arr = np.array(r["y_pred"])
         residuals = ytest_arr - ypred_arr
@@ -150,15 +184,21 @@ if task_type == "Regression":
         )
 
 else:
-    col_a, col_b, col_c = st.columns(3)
-    with col_a:
+    st.markdown("#### Classification Models")
+    top_a, top_b = st.columns(2)
+    with top_a:
         run_logreg = st.checkbox("Logistic Regression", value=True)
-    with col_b:
-        run_rf = st.checkbox("Random Forest", value=True)
-        rf_estimators = st.slider("RF estimators", 50, 500, 200, step=50)
-    with col_c:
         run_knn = st.checkbox("KNN", value=False)
         knn_neighbors = st.slider("KNN neighbors", 1, 25, 5)
+    with top_b:
+        run_rf = st.checkbox("Random Forest", value=True)
+        rf_estimators = st.slider("RF estimators", 50, 500, 200, step=50)
+        rf_max_depth_raw = st.slider("RF max depth (0 = None)", 0, 30, 8)
+        rf_min_samples_split = st.slider("RF min samples split", 2, 20, 2)
+        rf_min_samples_leaf = st.slider("RF min samples leaf", 1, 20, 1)
+        rf_max_features = st.selectbox("RF max features", ["sqrt", "log2"])
+        rf_bootstrap = st.checkbox("RF bootstrap", value=True)
+    rf_max_depth = None if rf_max_depth_raw == 0 else rf_max_depth_raw
 
     if st.button("🚀 Train Classification Models", use_container_width=True):
         st.session_state.cls_results = run_classification_models(
@@ -172,6 +212,11 @@ else:
             run_logreg=run_logreg,
             run_rf=run_rf,
             rf_estimators=rf_estimators,
+            rf_max_depth=rf_max_depth,
+            rf_min_samples_split=rf_min_samples_split,
+            rf_min_samples_leaf=rf_min_samples_leaf,
+            rf_max_features=rf_max_features,
+            rf_bootstrap=rf_bootstrap,
             run_knn=run_knn,
             knn_neighbors=knn_neighbors,
         )
@@ -199,14 +244,35 @@ else:
         m3.metric("Recall", r["Recall"])
         m4.metric("F1", r["F1"])
 
-        cm = r["Confusion Matrix"]
-        labels = sorted(pd.Series(r["y_test"]).astype(str).unique())
-        fig_cm = px.imshow(cm, text_auto=True, x=labels, y=labels, color_continuous_scale="Blues")
-        fig_cm.update_layout(title="Confusion Matrix", xaxis_title="Predicted", yaxis_title="Actual", height=380, **PLOTLY_THEME)
-        st.plotly_chart(fig_cm, use_container_width=True)
+        chart_col, tree_col = st.columns([1.2, 0.8])
+        with chart_col:
+            cm = r["Confusion Matrix"]
+            labels = sorted(pd.Series(r["y_test"]).astype(str).unique())
+            fig_cm = px.imshow(cm, text_auto=True, x=labels, y=labels, color_continuous_scale="Blues")
+            fig_cm.update_layout(title="Confusion Matrix", xaxis_title="Predicted", yaxis_title="Actual", height=380, **PLOTLY_THEME)
+            st.plotly_chart(fig_cm, use_container_width=True)
+            report_df = pd.DataFrame(r["Report"]).T
+            st.dataframe(report_df, use_container_width=True)
 
-        report_df = pd.DataFrame(r["Report"]).T
-        st.dataframe(report_df, use_container_width=True)
+        with tree_col:
+            if hasattr(r["model"], "estimators_"):
+                st.markdown("##### Random Forest Tree View")
+                tree_count = len(r["model"].estimators_)
+                tree_idx = st.slider(f"Tree index for {name}", 0, tree_count - 1, 0, key=f"rf_tree_{name}")
+                plot_depth = st.slider(f"Tree plot depth for {name}", 1, 6, 3, key=f"rf_plot_depth_{name}")
+                fig_tree, ax = plt.subplots(figsize=(10, 5))
+                plot_tree(
+                    r["model"].estimators_[tree_idx],
+                    feature_names=r["features"],
+                    class_names=[str(c) for c in r["model"].classes_],
+                    filled=True,
+                    max_depth=plot_depth,
+                    fontsize=7,
+                    ax=ax,
+                )
+                plt.tight_layout()
+                st.pyplot(fig_tree, use_container_width=True)
+                plt.close(fig_tree)
 
         st.download_button(
             f"⬇ Download {name} model",

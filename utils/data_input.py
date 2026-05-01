@@ -5,9 +5,10 @@ Shared sidebar data-input controls for the DatoScope app.
 from __future__ import annotations
 
 import streamlit as st
+from sklearn.model_selection import train_test_split
 
 from utils.app_state import reset_model_results, set_data
-from utils.generators import CLUSTERING_DATASETS, REGRESSION_DATASETS, generate_dataset
+from utils.generators import CLASSIFICATION_DATASETS, CLUSTERING_DATASETS, REGRESSION_DATASETS, generate_dataset
 from utils.preprocessing import clean_datasets, load_uploaded_file
 from utils.ui import render_sidebar_brand
 
@@ -25,8 +26,12 @@ def render_data_sidebar() -> None:
         )
 
         if data_mode == "Generate Dataset":
-            task_type = st.selectbox("Task type", ["Regression", "Clustering"])
-            dataset_options = REGRESSION_DATASETS if task_type == "Regression" else CLUSTERING_DATASETS
+            task_type = st.selectbox("Task type", ["Regression", "Classification", "Clustering"])
+            dataset_options = (
+                REGRESSION_DATASETS if task_type == "Regression"
+                else CLASSIFICATION_DATASETS if task_type == "Classification"
+                else CLUSTERING_DATASETS
+            )
             dataset_type = st.selectbox("Dataset type", dataset_options)
             n_samples = st.slider("Samples", 100, 5000, 500, step=50)
             noise = st.slider("Noise", 0.01, 2.0, 0.15, step=0.01)
@@ -34,7 +39,18 @@ def render_data_sidebar() -> None:
             min_features = 2 if task_type == "Clustering" else 1
             default_features = 20 if dataset_type == "High-Dimensional" else max(min_features, 6)
             n_features = st.slider("Number of features", min_features, 50, default_features)
-            n_informative = st.slider("Informative features", 2, n_features, min(5, n_features)) if dataset_type == "High-Dimensional" else 5
+            n_informative = (
+                st.slider("Informative features", 2, n_features, min(5, n_features))
+                if task_type == "Classification" or dataset_type == "High-Dimensional"
+                else 5
+            )
+            target_name = st.text_input(
+                "Target column name",
+                value="label" if task_type == "Clustering" else "target",
+                disabled=task_type == "Clustering",
+            )
+            create_split = st.checkbox("Create train/test split now", value=task_type != "Clustering")
+            generated_test_pct = st.slider("Generated test split %", 10, 40, 20) if create_split and task_type != "Clustering" else 20
             random_seed = st.number_input("Random seed", min_value=0, value=42, step=1)
 
             if st.button("🧪 Generate Dataset", use_container_width=True):
@@ -47,11 +63,28 @@ def render_data_sidebar() -> None:
                     random_seed=random_seed,
                     n_features=n_features,
                     n_informative=n_informative,
+                    target_name=target_name if task_type != "Clustering" else "label",
                 )
-                meta["split_method"] = "Auto split from generated train data"
+                active_target = meta.get("target_column", target_name if task_type != "Clustering" else "label")
+                train_df = df_gen
+                test_df = None
+                if create_split and task_type != "Clustering":
+                    stratify = train_df[active_target] if task_type == "Classification" else None
+                    train_df, test_df = train_test_split(
+                        df_gen,
+                        test_size=generated_test_pct / 100,
+                        random_state=random_seed,
+                        stratify=stratify,
+                    )
+                    train_df = train_df.reset_index(drop=True)
+                    test_df = test_df.reset_index(drop=True)
+                    meta["split_method"] = f"Generated split ({generated_test_pct}% test)"
+                else:
+                    meta["split_method"] = "Single generated dataset"
+                meta["active_ml_task"] = task_type
                 set_data(
-                    train_df=df_gen,
-                    test_df=None,
+                    train_df=train_df,
+                    test_df=test_df,
                     raw_df=df_gen,
                     train_filename=f"{task_type.lower()}_{dataset_type.lower().replace(' ', '_')}.csv",
                     source_mode="Generate Dataset",
@@ -71,6 +104,7 @@ def render_data_sidebar() -> None:
                     source_mode="Upload Single File",
                     metadata={"source": "uploaded", "split_method": "Auto split from uploaded train file", "dataset_type": "User upload"},
                 )
+                st.session_state.data_meta["active_ml_task"] = "Auto"
                 st.success(f"Loaded {uploaded.name}")
                 st.caption(f"{df_raw.shape[0]:,} rows × {df_raw.shape[1]} cols")
 
@@ -96,11 +130,16 @@ def render_data_sidebar() -> None:
                             "dataset_type": "User upload",
                         },
                     )
+                    st.session_state.data_meta["active_ml_task"] = "Auto"
                     st.success("Train/test files loaded" if test_df is not None else "Train file loaded")
 
         st.divider()
 
         if st.session_state.train_df is not None:
+            current_task = st.session_state.data_meta.get("active_ml_task", "Auto")
+            task_options = ["Auto", "Regression", "Classification", "Clustering"]
+            task_index = task_options.index(current_task) if current_task in task_options else 0
+            st.session_state.data_meta["active_ml_task"] = st.selectbox("Selected ML task", task_options, index=task_index)
             st.markdown("#### Preprocessing")
             missing_strat = st.selectbox("Missing values", ["mean", "median", "mode", "drop"])
             outlier_meth = st.selectbox("Outlier method", ["IQR", "Z-Score", "None"])
@@ -132,4 +171,4 @@ def render_data_sidebar() -> None:
                 st.success("Dataset preprocessing complete")
 
         st.divider()
-        st.caption("DatoScope · MA25 Project")
+        st.caption("DatoScope: An Interactive Approach to Data Visualization and Machine Learning")

@@ -6,6 +6,7 @@ from .io import (
     ensure_dirs,
 )
 from .generators import (
+    CLASSIFICATION_DATASETS,
     CLUSTERING_DATASETS,
     REGRESSION_DATASETS,
     gen_gaussian_blobs,

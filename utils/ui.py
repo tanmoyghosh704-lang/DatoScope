@@ -63,6 +63,18 @@ def setup_page(title: str = "DatoScope") -> None:
         background: linear-gradient(135deg, #10b98133, #00d4ff11);
         border: 1px solid #10b981; border-radius: 12px; padding: 16px 20px; text-align: center;
       }
+      .cleaned-preview-banner {
+        background: linear-gradient(135deg, rgba(0,212,255,0.18), rgba(124,58,237,0.10));
+        border: 1px solid rgba(0,212,255,0.3);
+        border-radius: 14px;
+        padding: 14px 18px;
+        margin: 10px 0 14px;
+        animation: fadeUp .6s ease-out;
+      }
+      @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
       hr { border-color: var(--border); }
     </style>
     """,
@@ -74,8 +86,8 @@ def render_sidebar_brand() -> None:
     st.markdown(
         """
     <div style='padding:8px 0 24px'>
-      <div style='font-family:Space Mono,monospace;font-size:1.5rem;color:#00d4ff;font-weight:700;letter-spacing:-1px;'>🔬 DatoScope</div>
-      <div style='color:#64748b;font-size:12px;margin-top:4px;'>Interactive ML Platform</div>
+      <div style='font-family:Space Mono,monospace;font-size:1.5rem;color:#00d4ff;font-weight:700;letter-spacing:-1px;'>Dataset Processing</div>
+      <div style='color:#64748b;font-size:12px;margin-top:4px;'>Interactive ML workflow</div>
     </div>
     """,
         unsafe_allow_html=True,
@@ -126,3 +138,13 @@ def show_dataset_block(title: str, df: pd.DataFrame) -> None:
             }
         )
         st.dataframe(summary, use_container_width=True, height=320)
+
+
+def hex_to_rgba(hex_color: str, alpha: float) -> str:
+    hex_color = hex_color.lstrip("#")
+    if len(hex_color) != 6:
+        return f"rgba(0,212,255,{alpha})"
+    r = int(hex_color[0:2], 16)
+    g = int(hex_color[2:4], 16)
+    b = int(hex_color[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"

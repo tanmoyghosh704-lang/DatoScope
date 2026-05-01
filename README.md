@@ -4,12 +4,14 @@ DatoScope is a multipage Streamlit application for synthetic data generation, da
 
 ## Highlights
 
-- Generate datasets inside the app for regression or clustering
+- Generate datasets inside the app for regression, classification, or clustering
 - Upload a single dataset or separate train/test files
+- Optionally create a train/test split during dataset generation
 - Clean train and test data with missing-value handling, outlier removal, duplicate removal, and scaling
-- Run EDA with summary statistics, distributions, correlations, scatter plots, and variance ranking
+- Run EDA with summary statistics, distributions, Q-Q plots, correlations, scatter plots, and explainable variance ranking
 - Train regression models: Linear Regression, Ridge, Lasso
 - Train classification models: Logistic Regression, Random Forest, KNN
+- Visualize individual trees from trained Random Forest classifiers
 - Run clustering models: K-Means, DBSCAN, Hierarchical Clustering
 - Compare regression, classification, and clustering results in dedicated pages
 - Download trained supervised models as `.pkl`
@@ -19,12 +21,14 @@ DatoScope is a multipage Streamlit application for synthetic data generation, da
 The sidebar supports three workflows:
 
 1. `Generate Dataset`
-   Create synthetic regression or clustering datasets with controls for:
+   Create synthetic regression, classification, or clustering datasets with controls for:
    - dataset type
    - sample count
    - noise
    - number of clusters / arms
    - number of features
+   - target column name
+   - optional generated train/test split
    - random seed
 
 2. `Upload Single File`
@@ -41,11 +45,11 @@ The sidebar supports three workflows:
 - `pages/1_EDA.py`
   Exploratory data analysis
 - `pages/2_Supervised_Modeling.py`
-  Regression and classification workflows
+  Regression and classification workflows, random forest controls, and tree visualization
 - `pages/3_Clustering.py`
-  Clustering workflows and visualizations
+  Clustering workflows, cluster-size plots, and optional ground-truth metrics
 - `pages/4_Comparison.py`
-  Model comparison dashboard
+  Model comparison dashboard with improved regression scoring and explicit winner-selection logic
 
 ## Project Structure
 
@@ -117,6 +121,12 @@ This pipeline runs:
 
 ## Notes
 
+- Generated datasets can now be created specifically for regression, classification, or clustering.
+- The sidebar includes a selected ML task control so the interface can stay focused on one task at a time.
 - Classification is inferred from the selected target column but can also be chosen manually in the supervised modeling page.
+- Classification train/test splitting now falls back safely when a class has too few samples for strict stratification.
 - Model export currently supports supervised models.
 - Clustering runs on the train dataset only when a separate test file is present.
+- If a dataset contains ground-truth `label` values, clustering comparison can also report Fowlkes-Mallows and Rand Index scores.
+- Regression comparison now considers both predictive quality and generalization instead of choosing winners from raw test R² alone.
+- Clustering comparison now selects the best algorithm by counting how many of the five tracked clustering metrics each model wins.

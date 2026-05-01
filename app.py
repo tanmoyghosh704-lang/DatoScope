@@ -37,6 +37,15 @@ if st.session_state.test_df is not None:
 
 if st.session_state.clean_train_df is not None:
     st.markdown("---")
+    st.markdown(
+        """
+        <div class="cleaned-preview-banner">
+          <b>Cleaned Dataset Preview</b><br>
+          Your processed train dataset is ready for EDA, supervised modeling, and clustering.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     st.markdown("#### Cleaned Train Preview")
     report = st.session_state.clean_report_train or {}
     c1, c2, c3 = st.columns(3)
