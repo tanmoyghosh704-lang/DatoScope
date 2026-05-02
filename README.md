@@ -40,7 +40,7 @@ The sidebar supports three workflows:
 
 ## Pages
 
-- `app.py`
+- `Preprocessing.py`
   Data input, preprocessing, dataset metadata, raw/clean previews
 - `pages/1_EDA.py`
   Exploratory data analysis
@@ -55,7 +55,7 @@ The sidebar supports three workflows:
 
 ```text
 DatoScope/
-├── app.py
+├── Preprocessing.py
 ├── pages/
 │   ├── 1_EDA.py
 │   ├── 2_Supervised_Modeling.py
@@ -93,7 +93,7 @@ pip install -r requirements.txt
 
 ```bash
 cd /Users/mehakgupta/Desktop/sem2/Data_Visual/project/DatoScope
-/Users/mehakgupta/Desktop/sem2/Data_Visual/project/DatoScope/.venv/bin/python -m streamlit run app.py
+/Users/mehakgupta/Desktop/sem2/Data_Visual/project/DatoScope/.venv/bin/python -m streamlit run Preprocessing.py
 ```
 
 ## Run The Offline Pipeline
