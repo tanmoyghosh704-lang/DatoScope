@@ -133,7 +133,7 @@ for name, r in results_c.items():
     m6.metric("Rand Index", r.get("Rand Index") or "N/A")
 
     labels_arr = r["labels"]
-    display_labels = pd.Series(labels_arr).map(lambda v: "Noise" if int(v) == -1 else f"Cluster {int(v)}")
+    display_labels = pd.Series(labels_arr).map(lambda v: "Noise" if int(v) == -1 else f"Cluster {int(v) + 1}")
     plot_df = pd.DataFrame({"x": coords[:, 0], "y": coords[:, 1], "Cluster": display_labels})
     fig_cl = px.scatter(plot_df, x="x", y="y", color="Cluster", color_discrete_sequence=PALETTE, labels={"x": xlab, "y": ylab}, opacity=0.75)
     fig_cl.update_layout(height=380, legend_title_text="Cluster", title=f"{name} — Cluster Assignments", **PLOTLY_THEME)
