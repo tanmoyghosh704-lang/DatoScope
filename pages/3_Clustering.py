@@ -47,7 +47,7 @@ with top1:
 with top2:
     run_db = st.checkbox("DBSCAN", value=True)
     db_eps = st.number_input("ε (eps)", min_value=0.01, max_value=10.0, value=0.5, step=0.05) if run_db else 0.5
-    db_min = st.slider("min_samples", 2, 20, 5) if run_db else 5
+    db_min = st.slider("min_samples", 2, 30, 5) if run_db else 5
 with top3:
     run_hc = st.checkbox("Hierarchical", value=True)
     hc_k = st.slider("n_clusters", 2, 10, 3, key="hc_k") if run_hc else 3
@@ -113,7 +113,6 @@ st.dataframe(
 
 if X_plot.shape[1] > 2:
     from sklearn.decomposition import PCA
-
     pca = PCA(n_components=2)
     coords = pca.fit_transform(X_plot)
     xlab = f"PC1 ({pca.explained_variance_ratio_[0] * 100:.1f}%)"
@@ -133,20 +132,53 @@ for name, r in results_c.items():
     m6.metric("Rand Index", r.get("Rand Index") or "N/A")
 
     labels_arr = r["labels"]
-    display_labels = pd.Series(labels_arr).map(lambda v: "Noise" if int(v) == -1 else f"Cluster {int(v) + 1}")
+
+    
+    display_labels = pd.Series(labels_arr).map(
+        lambda v: "Noise" if int(v) == -1 else f"Cluster {int(v) + 1}"
+    )
+
+    
+    unique_labels = sorted(
+        display_labels.unique(),
+        key=lambda x: (x == "Noise", x)   
+    )
+
+    
+    color_map = {label: PALETTE[i % len(PALETTE)] for i, label in enumerate(unique_labels)}
+
+    # ── Scatter plot — pass category_orders so Plotly respects our order ────
     plot_df = pd.DataFrame({"x": coords[:, 0], "y": coords[:, 1], "Cluster": display_labels})
-    fig_cl = px.scatter(plot_df, x="x", y="y", color="Cluster", color_discrete_sequence=PALETTE, labels={"x": xlab, "y": ylab}, opacity=0.75)
-    fig_cl.update_layout(height=380, legend_title_text="Cluster", title=f"{name} — Cluster Assignments", **PLOTLY_THEME)
+    fig_cl = px.scatter(
+        plot_df,
+        x="x", y="y",
+        color="Cluster",
+        color_discrete_map=color_map,          
+        category_orders={"Cluster": unique_labels},  
+        labels={"x": xlab, "y": ylab},
+        opacity=0.75,
+    )
+    fig_cl.update_layout(
+        height=380,
+        legend_title_text="Cluster",
+        title=f"{name} — Cluster Assignments",
+        **PLOTLY_THEME,
+    )
     fig_cl.update_traces(marker_size=6)
     st.plotly_chart(fig_cl, use_container_width=True)
 
-    sizes = display_labels.value_counts().sort_index()
+    
+    sizes = display_labels.value_counts()
+    
+    sizes = sizes.reindex(unique_labels).fillna(0).astype(int)
+
     fig_sz = px.bar(
         x=sizes.index,
         y=sizes.values,
         labels={"x": "Cluster", "y": "Count"},
         color=sizes.index,
-        color_discrete_sequence=PALETTE,
+        color_discrete_map=color_map,          
+        category_orders={"color": unique_labels, "x": unique_labels},  
     )
     fig_sz.update_layout(title="Cluster sizes", height=260, showlegend=False, **PLOTLY_THEME)
     st.plotly_chart(fig_sz, use_container_width=True)
