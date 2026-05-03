@@ -30,6 +30,55 @@ render_metadata_panel(st.session_state.data_meta, st.session_state.train_df, st.
 dataset_preview_metrics(st.session_state.train_df, "Train")
 show_dataset_block("Train Dataset", st.session_state.train_df)
 
+if st.session_state.data_meta.get("source") == "generated":
+    st.markdown("---")
+    st.markdown("#### Generated Dataset Plot")
+    generated_df = st.session_state.train_df.copy()
+    numeric_cols = generated_df.select_dtypes(include="number").columns.tolist()
+    target_col = st.session_state.data_meta.get("target_column")
+    color_col = None
+    for candidate in [target_col, "label", "target"]:
+        if candidate and candidate in generated_df.columns:
+            color_col = candidate
+            break
+
+    if len(numeric_cols) >= 2:
+        plot_features = [col for col in numeric_cols if col != color_col]
+        if len(plot_features) >= 2:
+            x_col, y_col = plot_features[:2]
+        else:
+            x_col, y_col = numeric_cols[:2]
+        fig_generated = px.scatter(
+            generated_df,
+            x=x_col,
+            y=y_col,
+            color=color_col,
+            opacity=0.8,
+            title=f"Generated data preview: {x_col} vs {y_col}",
+        )
+        fig_generated.update_traces(marker=dict(size=9, line=dict(width=0.5, color="#111827")))
+        fig_generated.update_layout(height=430, **PLOTLY_THEME)
+        st.plotly_chart(fig_generated, use_container_width=True)
+        if color_col:
+            st.caption(
+                f"This preview uses the first two numeric features and colors points by `{color_col}` so you can quickly inspect the generated structure."
+            )
+        else:
+            st.caption("This preview uses the first two numeric features so you can quickly inspect the generated structure.")
+    elif len(numeric_cols) == 1:
+        fig_generated = px.histogram(
+            generated_df,
+            x=numeric_cols[0],
+            color=color_col,
+            nbins=40,
+            title=f"Generated data preview: distribution of {numeric_cols[0]}",
+        )
+        fig_generated.update_layout(height=380, **PLOTLY_THEME)
+        st.plotly_chart(fig_generated, use_container_width=True)
+        st.caption("Only one numeric feature is available, so the preview is shown as a distribution plot.")
+    else:
+        st.info("A generated-data preview plot is unavailable because no numeric feature columns were found.")
+
 if st.session_state.test_df is not None:
     st.markdown("---")
     dataset_preview_metrics(st.session_state.test_df, "Test")
