@@ -1,5 +1,5 @@
 """
-DatoScope main entrypoint.
+DatoScope official Streamlit entrypoint.
 
 This page focuses on data input and dataset overview. Other workflows live in
 the Streamlit pages/ directory.

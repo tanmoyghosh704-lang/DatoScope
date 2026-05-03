@@ -7,7 +7,7 @@ DatoScope is a multipage Streamlit application for synthetic data generation, da
 - Generate datasets inside the app for regression, classification, or clustering
 - Upload a single dataset or separate train/test files
 - Optionally create a train/test split during dataset generation
-- Clean train and test data with missing-value handling, outlier removal, duplicate removal, and scaling
+- Clean train and test data with missing-value handling, outlier removal, duplicate removal, scaling, and categorical encoding
 - Run EDA with summary statistics, distributions, Q-Q plots, correlations, scatter plots, and explainable variance ranking
 - Train regression models: Linear Regression, Ridge, Lasso
 - Train classification models: Logistic Regression, Random Forest, KNN
@@ -33,6 +33,7 @@ The sidebar supports three workflows:
 
 2. `Upload Single File`
    Upload one file and let the app create an internal train/test split during supervised modeling.
+   Uploaded datasets can also use categorical encoding during preprocessing.
 
 3. `Upload Train/Test`
    Upload a train file and an optional test file.
@@ -41,7 +42,9 @@ The sidebar supports three workflows:
 ## Pages
 
 - `Preprocessing.py`
-  Data input, preprocessing, dataset metadata, raw/clean previews
+  Official Streamlit entry page for data input, preprocessing, dataset metadata, and raw/clean previews
+- `app.py`
+  Compatibility wrapper that forwards to `Preprocessing.py`
 - `pages/1_EDA.py`
   Exploratory data analysis
 - `pages/2_Supervised_Modeling.py`
@@ -56,6 +59,7 @@ The sidebar supports three workflows:
 ```text
 DatoScope/
 ├── Preprocessing.py
+├── app.py
 ├── pages/
 │   ├── 1_EDA.py
 │   ├── 2_Supervised_Modeling.py
@@ -93,7 +97,7 @@ pip install -r requirements.txt
 
 ```bash
 cd /Users/mehakgupta/Desktop/sem2/Data_Visual/project/DatoScope
-/Users/mehakgupta/Desktop/sem2/Data_Visual/project/DatoScope/.venv/bin/python -m streamlit run Preprocessing.py
+/Users/mehakgupta/Desktop/sem2/Data_Visual/project/DatoScope/.venv/bin/python -m streamlit run app.py
 ```
 
 ## Run The Offline Pipeline
@@ -123,6 +127,7 @@ This pipeline runs:
 
 - Generated datasets can now be created specifically for regression, classification, or clustering.
 - The sidebar includes a selected ML task control so the interface can stay focused on one task at a time.
+- Uploaded datasets can encode categorical variables using One-Hot or Label encoding during preprocessing.
 - Classification is inferred from the selected target column but can also be chosen manually in the supervised modeling page.
 - Classification train/test splitting now falls back safely when a class has too few samples for strict stratification.
 - Model export currently supports supervised models.

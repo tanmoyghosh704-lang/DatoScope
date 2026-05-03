@@ -60,6 +60,8 @@ def clean_dataframe(
     scale_method: str,
     remove_dupes: bool,
     label_col: str | None = None,
+    encode_categoricals: bool = False,
+    categorical_encoding: str = "One-Hot",
 ) -> tuple[pd.DataFrame, dict]:
     report = {"rows_in": len(df), "cols_in": len(df.columns), "actions": []}
     df = df.copy()
@@ -122,6 +124,19 @@ def clean_dataframe(
         df[feat_cols] = scaler.fit_transform(df[feat_cols])
         report["actions"].append(f"Scaled with {scale_method}Scaler")
 
+    if encode_categoricals:
+        encode_cols = [c for c in cat_cols if c != label_col]
+        if encode_cols:
+            if categorical_encoding == "Label":
+                for col in encode_cols:
+                    df[col] = pd.factorize(df[col])[0]
+                report["actions"].append(f"Label-encoded {len(encode_cols)} categorical column(s)")
+            else:
+                before_cols = df.shape[1]
+                df = pd.get_dummies(df, columns=encode_cols, drop_first=False)
+                added_cols = df.shape[1] - before_cols
+                report["actions"].append(f"One-hot encoded {len(encode_cols)} categorical column(s) into {added_cols} feature column(s)")
+
     report.update({"rows_out": len(df), "cols_out": len(df.columns)})
     return df, report
 
@@ -135,6 +150,8 @@ def clean_datasets(
     scale_method: str,
     remove_dupes: bool,
     label_col: str | None,
+    encode_categoricals: bool = False,
+    categorical_encoding: str = "One-Hot",
 ) -> tuple[pd.DataFrame, pd.DataFrame | None, dict, dict | None]:
     train_clean, train_report = clean_dataframe(
         train_df,
@@ -143,6 +160,8 @@ def clean_datasets(
         scale_method=scale_method,
         remove_dupes=remove_dupes,
         label_col=label_col,
+        encode_categoricals=encode_categoricals,
+        categorical_encoding=categorical_encoding,
     )
     test_clean = None
     test_report = None
@@ -154,5 +173,7 @@ def clean_datasets(
             scale_method=scale_method,
             remove_dupes=remove_dupes,
             label_col=label_col if label_col in test_df.columns else None,
+            encode_categoricals=encode_categoricals,
+            categorical_encoding=categorical_encoding,
         )
     return train_clean, test_clean, train_report, test_report

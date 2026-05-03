@@ -144,6 +144,11 @@ def render_data_sidebar() -> None:
             missing_strat = st.selectbox("Missing values", ["mean", "median", "mode", "drop"])
             outlier_meth = st.selectbox("Outlier method", ["IQR", "Z-Score", "None"])
             scale_meth = st.selectbox("Scaler", ["Standard", "MinMax", "Robust"])
+            encode_categoricals = st.checkbox("Encode categorical variables", value=False)
+            categorical_encoding = (
+                st.selectbox("Categorical encoding", ["One-Hot", "Label"])
+                if encode_categoricals else "One-Hot"
+            )
             remove_dupes = st.checkbox("Remove duplicates", value=True)
             train_cols = st.session_state.train_df.columns.tolist()
             label_col = st.selectbox("Label / target column (optional — keeps it unscaled)", ["— none —"] + train_cols)
@@ -160,6 +165,8 @@ def render_data_sidebar() -> None:
                         scale_method=scale_meth,
                         remove_dupes=remove_dupes,
                         label_col=label_col,
+                        encode_categoricals=encode_categoricals,
+                        categorical_encoding=categorical_encoding,
                     )
                     st.session_state.clean_df = train_clean
                     st.session_state.clean_train_df = train_clean
@@ -172,3 +179,4 @@ def render_data_sidebar() -> None:
 
         st.divider()
         st.caption("DatoScope: An Interactive Approach to Data Visualization and Machine Learning")
+        st.caption("Created by: Aritra , Tanmoy , Mehak")
