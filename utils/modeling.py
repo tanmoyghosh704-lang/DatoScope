@@ -1,5 +1,7 @@
 """
 Reusable modeling helpers for DatoScope.
+Fixed: StandardScaler is now applied in run_clustering_models and projection_for_plot
+before DBSCAN / PCA, so eps values are meaningful and clusters are correct.
 """
 
 from __future__ import annotations
@@ -30,6 +32,8 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import KFold, StratifiedKFold, cross_val_score, train_test_split
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.preprocessing import StandardScaler  # ✅ FIX: Added missing import
+
 
 
 def _safe_stratify_target(y: pd.Series | np.ndarray | list, n_splits: int) -> pd.Series | None:
@@ -97,6 +101,7 @@ def _prepare_supervised_splits(
     return X_full, y_full, X_train, X_test, y_train, y_test, split_method
 
 
+
 def run_regression_models(
     df_train: pd.DataFrame,
     df_test: pd.DataFrame | None,
@@ -155,6 +160,8 @@ def run_regression_models(
             row["coef"] = dict(zip(features, model.coef_))
         results[name] = row
     return results
+
+
 
 
 def run_classification_models(
@@ -236,6 +243,8 @@ def run_classification_models(
     return results
 
 
+
+
 def run_clustering_models(
     df: pd.DataFrame,
     *,
@@ -251,6 +260,12 @@ def run_clustering_models(
     ground_truth: pd.Series | None = None,
 ) -> dict:
     X_c = df[features].dropna()
+
+
+    scaler = StandardScaler()
+    X_scaled_arr = scaler.fit_transform(X_c)
+    X_scaled = pd.DataFrame(X_scaled_arr, columns=features, index=X_c.index)
+
     clust_res = {}
     algo_list = []
     if run_km:
@@ -261,32 +276,52 @@ def run_clustering_models(
         algo_list.append(("Hierarchical", AgglomerativeClustering(n_clusters=hc_k, linkage=hc_link)))
 
     for name, algo in algo_list:
-        labels = algo.fit_predict(X_c)
+        
+        labels = algo.fit_predict(X_scaled)
         unique = np.unique(labels[labels != -1])
         n_clust = len(unique)
         row = {"labels": labels, "n_clusters": n_clust}
-        if n_clust >= 2 and len(unique) < len(X_c):
+
+        if n_clust >= 2 and len(unique) < len(X_scaled):
             mask = labels != -1
-            row["Silhouette"] = round(silhouette_score(X_c[mask], labels[mask]), 4) if mask.sum() > 1 else None
-            row["Davies-Bouldin"] = round(davies_bouldin_score(X_c[mask], labels[mask]), 4) if mask.sum() > 1 else None
-            row["Calinski-Harabasz"] = round(calinski_harabasz_score(X_c[mask], labels[mask]), 4) if mask.sum() > 1 else None
+           
+            row["Silhouette"] = round(silhouette_score(X_scaled[mask], labels[mask]), 4) if mask.sum() > 1 else None
+            row["Davies-Bouldin"] = round(davies_bouldin_score(X_scaled[mask], labels[mask]), 4) if mask.sum() > 1 else None
+            row["Calinski-Harabasz"] = round(calinski_harabasz_score(X_scaled[mask], labels[mask]), 4) if mask.sum() > 1 else None
         else:
             row["Silhouette"] = None
             row["Davies-Bouldin"] = None
             row["Calinski-Harabasz"] = None
+
         if ground_truth is not None:
             truth = ground_truth.loc[X_c.index]
             row["FM Score"] = round(fowlkes_mallows_score(truth, labels), 4)
             row["Rand Index"] = round(rand_score(truth, labels), 4)
+
         clust_res[name] = row
 
-    return {"results": clust_res, "X": X_c.reset_index(drop=True), "features": features}
+   
+    return {"results": clust_res, "X": X_scaled.reset_index(drop=True), "features": features}
+
+
 
 
 def projection_for_plot(df: pd.DataFrame, features: list[str]) -> tuple[np.ndarray, str, str]:
+    X_raw = df[features].dropna()
+
     if len(features) > 2:
+        
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X_raw)
         pca = PCA(n_components=2)
-        coords = pca.fit_transform(df[features].dropna())
-        return coords, f"PC1 ({pca.explained_variance_ratio_[0] * 100:.1f}%)", f"PC2 ({pca.explained_variance_ratio_[1] * 100:.1f}%)"
-    values = df[features].dropna().values
-    return values, features[0], features[1]
+        coords = pca.fit_transform(X_scaled)
+        return (
+            coords,
+            f"PC1 ({pca.explained_variance_ratio_[0] * 100:.1f}%)",
+            f"PC2 ({pca.explained_variance_ratio_[1] * 100:.1f}%)",
+        )
+
+    
+    scaler = StandardScaler()
+    coords = scaler.fit_transform(X_raw.values)
+    return coords, features[0], features[1]
