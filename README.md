@@ -1,6 +1,6 @@
 # DatoScope
-## by Tanmoy (MA25M026), Mehak (MA25M016), Aritra (MA25M005)
-## for MA5755 Course Project, under Supervision of Prof. Rakhi Singh
+### by Tanmoy (MA25M026), Mehak (MA25M016), Aritra (MA25M005)
+### for MA5755 Course Project, under Supervision of Prof. Rakhi Singh
 
 
 DatoScope is a multipage Streamlit application for synthetic data generation, dataset upload, preprocessing, exploratory data analysis, supervised learning, clustering, and model comparison.
