@@ -9,6 +9,7 @@ import pandas as pd
 
 
 DEFAULT_STATE = dict(
+    theme="light",
     data_source_mode="Upload Single File",
     single_upload_signature="",
     train_upload_signature="",
