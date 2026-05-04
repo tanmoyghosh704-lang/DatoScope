@@ -112,15 +112,28 @@ if reg_res:
 
 if cls_res:
     st.markdown("### Classification Models")
-    st.caption("Best classification model is currently chosen by highest test Accuracy, with F1 and cross-validated Accuracy shown alongside it.")
-    cdf = pd.DataFrame([{"Model": name, "Accuracy": r["Accuracy"], "Precision": r["Precision"], "Recall": r["Recall"], "F1": r["F1"], "CV Accuracy": r["CV Accuracy"]} for name, r in cls_res.items()])
-    best_c = cdf.loc[cdf["Accuracy"].idxmax()]
+    st.caption("Best classification model is chosen by highest Macro F1, which treats all classes more fairly than plain accuracy when class sizes differ.")
+    cdf = pd.DataFrame(
+        [
+            {
+                "Model": name,
+                "Accuracy": r["Accuracy"],
+                "Precision": r["Precision"],
+                "Recall": r["Recall"],
+                "F1": r["F1"],
+                "Macro F1": r["Macro F1"],
+                "CV Accuracy": r["CV Accuracy"],
+            }
+            for name, r in cls_res.items()
+        ]
+    )
+    best_c = cdf.loc[cdf["Macro F1"].idxmax()]
     st.markdown(
         f"""
         <div class="winner-banner">
           <div style="font-size:11px;color:#10b981;letter-spacing:1px;text-transform:uppercase;font-family:'Space Mono',monospace;margin-bottom:4px;">Best Classification Model</div>
           <div style="font-size:1.4rem;font-weight:700;font-family:'Space Mono',monospace;color:#fff;">🥇 {best_c['Model']}</div>
-          <div style="color:#94a3b8;font-size:13px;margin-top:6px;">Accuracy = {best_c['Accuracy']} · F1 = {best_c['F1']} · CV Accuracy = {best_c['CV Accuracy']}</div>
+          <div style="color:#94a3b8;font-size:13px;margin-top:6px;">Macro F1 = {best_c['Macro F1']} · Accuracy = {best_c['Accuracy']} · CV Accuracy = {best_c['CV Accuracy']}</div>
         </div>""",
         unsafe_allow_html=True,
     )
@@ -128,13 +141,13 @@ if cls_res:
         f"""
         <div class="ds-card">
           <b>Why this model won</b><br>
-          It has the highest test <code>Accuracy = {best_c['Accuracy']}</code>, which is the primary selection metric on this page.
-          Its <code>F1 = {best_c['F1']}</code> and <code>CV Accuracy = {best_c['CV Accuracy']}</code> are shown as supporting signals so you can judge whether the model also balances class-wise performance and generalizes well.
+          It has the highest <code>Macro F1 = {best_c['Macro F1']}</code>, which is the primary selection metric on this page because it gives equal importance to each class.
+          Its <code>Accuracy = {best_c['Accuracy']}</code>, weighted <code>F1 = {best_c['F1']}</code>, and <code>CV Accuracy = {best_c['CV Accuracy']}</code> are shown as supporting signals so you can judge overall correctness and stability too.
         </div>
         """,
         unsafe_allow_html=True,
     )
-    fig_c = px.bar(cdf, x="Model", y=["Accuracy", "F1", "CV Accuracy"], barmode="group")
+    fig_c = px.bar(cdf, x="Model", y=["Macro F1", "Accuracy", "CV Accuracy"], barmode="group")
     fig_c.update_layout(title="Classification Metrics", height=340, **PLOTLY_THEME)
     st.plotly_chart(fig_c, use_container_width=True)
 

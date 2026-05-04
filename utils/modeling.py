@@ -233,6 +233,7 @@ def run_classification_models(
             "Precision": round(precision_score(y_test, y_pred, average="weighted", zero_division=0), 4),
             "Recall": round(recall_score(y_test, y_pred, average="weighted", zero_division=0), 4),
             "F1": round(f1_score(y_test, y_pred, average="weighted", zero_division=0), 4),
+            "Macro F1": round(f1_score(y_test, y_pred, average="macro", zero_division=0), 4),
             "CV Accuracy": round(cv_acc, 4),
             "Confusion Matrix": confusion_matrix(y_test, y_pred),
             "Report": classification_report(y_test, y_pred, zero_division=0, output_dict=True),

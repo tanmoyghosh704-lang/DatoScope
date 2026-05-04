@@ -11,7 +11,6 @@ import streamlit as st
 
 navigation = st.navigation(
     [
-        st.Page("Preprocessing.py", title="Preprocessing"),
         st.Page("pages/1_EDA.py", title="EDA"),
         st.Page("pages/2_Supervised_Modeling.py", title="Supervised Modeling"),
         st.Page("pages/3_Clustering.py", title="Clustering"),

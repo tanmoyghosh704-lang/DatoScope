@@ -10,6 +10,9 @@ import pandas as pd
 
 DEFAULT_STATE = dict(
     data_source_mode="Upload Single File",
+    single_upload_signature="",
+    train_upload_signature="",
+    test_upload_signature="",
     raw_df=None,
     train_df=None,
     test_df=None,

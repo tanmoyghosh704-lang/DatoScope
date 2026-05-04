@@ -4,13 +4,22 @@ Shared sidebar data-input controls for the DatoScope app.
 
 from __future__ import annotations
 
+import hashlib
+
 import streamlit as st
 from sklearn.model_selection import train_test_split
 
 from utils.app_state import reset_model_results, set_data
 from utils.generators import CLASSIFICATION_DATASETS, CLUSTERING_DATASETS, REGRESSION_DATASETS, generate_dataset
-from utils.preprocessing import clean_datasets, load_uploaded_file
+from utils.preprocessing import clean_datasets, estimate_outlier_removal, load_uploaded_file
 from utils.ui import render_sidebar_brand
+
+
+def _uploaded_signature(uploaded) -> str:
+    if uploaded is None:
+        return ""
+    raw = uploaded.getvalue()
+    return hashlib.md5(raw).hexdigest()
 
 
 def render_data_sidebar() -> None:
@@ -90,48 +99,62 @@ def render_data_sidebar() -> None:
                     source_mode="Generate Dataset",
                     metadata=meta,
                 )
+                st.session_state.single_upload_signature = ""
+                st.session_state.train_upload_signature = ""
+                st.session_state.test_upload_signature = ""
                 st.success(f"Generated {dataset_type} dataset")
 
         elif data_mode == "Upload Single File":
             uploaded = st.file_uploader("Upload dataset", type=["csv", "xls", "xlsx", "zip", "data"], key="single_upload")
             if uploaded:
-                df_raw = load_uploaded_file(uploaded)
-                set_data(
-                    train_df=df_raw,
-                    test_df=None,
-                    raw_df=df_raw,
-                    train_filename=uploaded.name,
-                    source_mode="Upload Single File",
-                    metadata={"source": "uploaded", "split_method": "Auto split from uploaded train file", "dataset_type": "User upload"},
-                )
-                st.session_state.data_meta["active_ml_task"] = "Auto"
-                st.success(f"Loaded {uploaded.name}")
-                st.caption(f"{df_raw.shape[0]:,} rows × {df_raw.shape[1]} cols")
+                upload_sig = _uploaded_signature(uploaded)
+                if upload_sig != st.session_state.single_upload_signature:
+                    df_raw = load_uploaded_file(uploaded)
+                    set_data(
+                        train_df=df_raw,
+                        test_df=None,
+                        raw_df=df_raw,
+                        train_filename=uploaded.name,
+                        source_mode="Upload Single File",
+                        metadata={"source": "uploaded", "split_method": "Auto split from uploaded train file", "dataset_type": "User upload"},
+                    )
+                    st.session_state.data_meta["active_ml_task"] = "Auto"
+                    st.session_state.single_upload_signature = upload_sig
+                    st.session_state.train_upload_signature = ""
+                    st.session_state.test_upload_signature = ""
+                    st.success(f"Loaded {uploaded.name}")
+                    st.caption(f"{df_raw.shape[0]:,} rows × {df_raw.shape[1]} cols")
 
         else:
             train_upload = st.file_uploader("Train file", type=["csv", "xls", "xlsx", "zip", "data"], key="train_upload")
             test_upload = st.file_uploader("Test file (optional)", type=["csv", "xls", "xlsx", "zip", "data"], key="test_upload")
             if train_upload:
-                train_df = load_uploaded_file(train_upload)
-                test_df = load_uploaded_file(test_upload) if test_upload else None
-                if test_df is not None and list(train_df.columns) != list(test_df.columns):
-                    st.error("Train/test column mismatch. Upload files with the same schema.")
-                else:
-                    set_data(
-                        train_df=train_df,
-                        test_df=test_df,
-                        raw_df=train_df,
-                        train_filename=train_upload.name,
-                        test_filename=test_upload.name if test_upload else "",
-                        source_mode="Upload Train/Test",
-                        metadata={
-                            "source": "uploaded",
-                            "split_method": "Uploaded test file" if test_df is not None else "Auto split from uploaded train file",
-                            "dataset_type": "User upload",
-                        },
-                    )
-                    st.session_state.data_meta["active_ml_task"] = "Auto"
-                    st.success("Train/test files loaded" if test_df is not None else "Train file loaded")
+                train_sig = _uploaded_signature(train_upload)
+                test_sig = _uploaded_signature(test_upload)
+                if train_sig != st.session_state.train_upload_signature or test_sig != st.session_state.test_upload_signature:
+                    train_df = load_uploaded_file(train_upload)
+                    test_df = load_uploaded_file(test_upload) if test_upload else None
+                    if test_df is not None and list(train_df.columns) != list(test_df.columns):
+                        st.error("Train/test column mismatch. Upload files with the same schema.")
+                    else:
+                        set_data(
+                            train_df=train_df,
+                            test_df=test_df,
+                            raw_df=train_df,
+                            train_filename=train_upload.name,
+                            test_filename=test_upload.name if test_upload else "",
+                            source_mode="Upload Train/Test",
+                            metadata={
+                                "source": "uploaded",
+                                "split_method": "Uploaded test file" if test_df is not None else "Auto split from uploaded train file",
+                                "dataset_type": "User upload",
+                            },
+                        )
+                        st.session_state.data_meta["active_ml_task"] = "Auto"
+                        st.session_state.single_upload_signature = ""
+                        st.session_state.train_upload_signature = train_sig
+                        st.session_state.test_upload_signature = test_sig
+                        st.success("Train/test files loaded" if test_df is not None else "Train file loaded")
 
         st.divider()
 
@@ -145,15 +168,59 @@ def render_data_sidebar() -> None:
             outlier_meth = st.selectbox("Outlier method", ["IQR", "Z-Score", "None"])
             scale_meth = st.selectbox("Scaler", ["Standard", "MinMax", "Robust"])
             encode_categoricals = st.checkbox("Encode categorical variables", value=False)
-            categorical_encoding = (
-                st.selectbox("Categorical encoding", ["One-Hot", "Label"])
-                if encode_categoricals else "One-Hot"
-            )
             remove_dupes = st.checkbox("Remove duplicates", value=True)
             train_cols = st.session_state.train_df.columns.tolist()
             label_col = st.selectbox("Label / target column (optional — keeps it unscaled)", ["— none —"] + train_cols)
             label_col = None if label_col == "— none —" else label_col
             st.session_state.data_meta["target_column"] = label_col or "Not selected yet"
+
+            categorical_cols = [
+                col for col in st.session_state.train_df.select_dtypes(exclude="number").columns.tolist() if col != label_col
+            ]
+            categorical_encoding = "One-Hot"
+            categorical_encoding_map: dict[str, str] = {}
+            if encode_categoricals:
+                if categorical_cols:
+                    categorical_encoding = st.selectbox("Default categorical encoding", ["One-Hot", "Label"])
+                    st.caption("Choose the encoding method for each categorical feature below.")
+                    for col_name in categorical_cols:
+                        categorical_encoding_map[col_name] = st.selectbox(
+                            f"Encoding for {col_name}",
+                            ["One-Hot", "Label"],
+                            index=0 if categorical_encoding == "One-Hot" else 1,
+                            key=f"encoding_{col_name}",
+                        )
+                else:
+                    st.caption("No categorical feature columns are available for encoding in the current train dataset.")
+
+            if outlier_meth == "None":
+                st.caption("Outlier removal is off, so no rows will be removed by the outlier step.")
+            else:
+                train_removed, train_base = estimate_outlier_removal(
+                    st.session_state.train_df,
+                    missing_strategy=missing_strat,
+                    outlier_method=outlier_meth,
+                    remove_dupes=remove_dupes,
+                    label_col=label_col,
+                )
+                train_pct = (train_removed / train_base * 100) if train_base else 0.0
+                st.caption(
+                    f"{outlier_meth} will remove about {train_removed} train row(s) "
+                    f"({train_pct:.2f}% of {train_base} rows after missing-value handling and duplicate removal)."
+                )
+                if st.session_state.test_df is not None:
+                    test_removed, test_base = estimate_outlier_removal(
+                        st.session_state.test_df,
+                        missing_strategy=missing_strat,
+                        outlier_method=outlier_meth,
+                        remove_dupes=remove_dupes,
+                        label_col=label_col if label_col in st.session_state.test_df.columns else None,
+                    )
+                    test_pct = (test_removed / test_base * 100) if test_base else 0.0
+                    st.caption(
+                        f"On the test dataset, the same setting will remove about {test_removed} row(s) "
+                        f"({test_pct:.2f}% of {test_base})."
+                    )
 
             if st.button("⚙️ Clean & Preprocess", use_container_width=True):
                 with st.spinner("Cleaning datasets…"):
@@ -167,6 +234,7 @@ def render_data_sidebar() -> None:
                         label_col=label_col,
                         encode_categoricals=encode_categoricals,
                         categorical_encoding=categorical_encoding,
+                        categorical_encoding_map=categorical_encoding_map,
                     )
                     st.session_state.clean_df = train_clean
                     st.session_state.clean_train_df = train_clean

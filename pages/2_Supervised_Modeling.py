@@ -156,9 +156,31 @@ if task_choice == "Regression":
 
         with fa:
             fig_ap = go.Figure()
-            fig_ap.add_trace(go.Scatter(x=ytest_arr, y=ypred_arr, mode="markers", marker=dict(color="#00d4ff", opacity=0.6, size=5)))
-            fig_ap.add_trace(go.Scatter(x=[min_v, max_v], y=[min_v, max_v], mode="lines", line=dict(color="#7c3aed", dash="dash")))
-            fig_ap.update_layout(title="Actual vs Predicted", xaxis_title="Actual", yaxis_title="Predicted", height=300, **PLOTLY_THEME)
+            fig_ap.add_trace(
+                go.Scatter(
+                    x=ytest_arr,
+                    y=ypred_arr,
+                    mode="markers",
+                    name="Predicted points",
+                    marker=dict(color="#00d4ff", opacity=0.6, size=5),
+                )
+            )
+            fig_ap.add_trace(
+                go.Scatter(
+                    x=[min_v, max_v],
+                    y=[min_v, max_v],
+                    mode="lines",
+                    name="Ideal prediction line",
+                    line=dict(color="#7c3aed", dash="dash"),
+                )
+            )
+            fig_ap.update_layout(
+                title="Actual vs Predicted",
+                xaxis_title="Actual",
+                yaxis_title="Predicted",
+                height=300,
+                **PLOTLY_THEME,
+            )
             st.plotly_chart(fig_ap, use_container_width=True)
 
         with fb:
@@ -185,6 +207,31 @@ if task_choice == "Regression":
 
 else:
     st.markdown("#### Classification Models")
+    st.markdown("#### Class Distribution")
+    class_counts = (
+        df_train[target_col]
+        .dropna()
+        .astype(str)
+        .value_counts()
+        .rename_axis("Class")
+        .reset_index(name="Count")
+    )
+    class_counts["Percent"] = ((class_counts["Count"] / class_counts["Count"].sum()) * 100).round(2)
+    cc1, cc2 = st.columns([0.95, 1.05])
+    with cc1:
+        st.dataframe(class_counts, use_container_width=True, hide_index=True)
+    with cc2:
+        fig_class_count = px.bar(
+            class_counts,
+            x="Class",
+            y="Count",
+            color="Class",
+            text="Count",
+            title="Class Count in Training Data",
+        )
+        fig_class_count.update_traces(textposition="outside")
+        fig_class_count.update_layout(height=320, showlegend=False, **PLOTLY_THEME)
+        st.plotly_chart(fig_class_count, use_container_width=True)
     top_a, top_b = st.columns(2)
     with top_a:
         run_logreg = st.checkbox("Logistic Regression", value=True)
@@ -229,10 +276,21 @@ else:
         st.stop()
 
     st.caption(f"Evaluation split: {next(iter(res.values()))['split_method']}")
-    metric_rows = [{"Model": name, "Accuracy": r["Accuracy"], "Precision": r["Precision"], "Recall": r["Recall"], "F1": r["F1"], "CV Accuracy": r["CV Accuracy"]} for name, r in res.items()]
+    metric_rows = [
+        {
+            "Model": name,
+            "Accuracy": r["Accuracy"],
+            "Precision": r["Precision"],
+            "Recall": r["Recall"],
+            "F1": r["F1"],
+            "Macro F1": r["Macro F1"],
+            "CV Accuracy": r["CV Accuracy"],
+        }
+        for name, r in res.items()
+    ]
     cdf = pd.DataFrame(metric_rows).set_index("Model")
     st.dataframe(
-        cdf.style.highlight_max(subset=["Accuracy", "Precision", "Recall", "F1", "CV Accuracy"], color="#10b98133").format(precision=4),
+        cdf.style.highlight_max(subset=["Accuracy", "Precision", "Recall", "F1", "Macro F1", "CV Accuracy"], color="#10b98133").format(precision=4),
         use_container_width=True,
     )
 
@@ -242,7 +300,7 @@ else:
         m1.metric("Accuracy", r["Accuracy"])
         m2.metric("Precision", r["Precision"])
         m3.metric("Recall", r["Recall"])
-        m4.metric("F1", r["F1"])
+        m4.metric("Macro F1", r["Macro F1"])
 
         chart_col, tree_col = st.columns([1.2, 0.8])
         with chart_col:
